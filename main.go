@@ -21,7 +21,7 @@ import (
 func main() {
 	// Pick up environment variables from .env
 	if err := godotenv.Load(); err != nil {
-		log.Fatalf("Error loading .env file: %v", err)
+		fmt.Printf("Error loading .env file: %v\n", err)
 	}
 
 	// Run database migrations
