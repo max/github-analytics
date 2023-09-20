@@ -5,10 +5,13 @@ import (
 	"database/sql"
 	"fmt"
 	"log"
+	"net/url"
 	"os"
 	"strings"
 	"time"
 
+	"github.com/amacneil/dbmate/v2/pkg/dbmate"
+	_ "github.com/amacneil/dbmate/v2/pkg/driver/sqlite"
 	"github.com/google/go-github/v40/github"
 	"github.com/joho/godotenv"
 	_ "github.com/mattn/go-sqlite3"
@@ -19,6 +22,15 @@ func main() {
 	// Pick up environment variables from .env
 	if err := godotenv.Load(); err != nil {
 		log.Fatalf("Error loading .env file: %v", err)
+	}
+
+	// Run database migrations
+	u, _ := url.Parse(os.Getenv("DATABASE_URL"))
+	dbm := dbmate.New(u)
+
+	err := dbm.CreateAndMigrate()
+	if err != nil {
+		log.Fatalf("Error migrating database: %v", err)
 	}
 
 	// Open SQLite database

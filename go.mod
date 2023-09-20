@@ -3,9 +3,12 @@ module github.com/max/github-analytics
 go 1.21.1
 
 require (
+	github.com/amacneil/dbmate/v2 v2.6.0
 	github.com/google/go-github/v40 v40.0.0
 	golang.org/x/oauth2 v0.12.0
 )
+
+require github.com/lib/pq v1.10.9 // indirect
 
 require (
 	github.com/golang/protobuf v1.5.3 // indirect
