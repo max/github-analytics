@@ -3,7 +3,9 @@ package main
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"fmt"
+	"io/fs"
 	"log"
 	"net/url"
 	"os"
@@ -21,7 +23,11 @@ import (
 func main() {
 	// Pick up environment variables from .env
 	if err := godotenv.Load(); err != nil {
-		fmt.Printf("Error loading .env file: %v\n", err)
+		if errors.Is(err, fs.ErrNotExist) {
+			fmt.Println("No .env file found")
+		} else {
+			log.Fatalf("Error loading .env file: %v\n", err)
+		}
 	}
 
 	// Run database migrations
