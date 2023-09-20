@@ -9,14 +9,13 @@ import (
 	"log"
 	"net/url"
 	"os"
-	"strings"
 	"time"
 
 	"github.com/amacneil/dbmate/v2/pkg/dbmate"
-	_ "github.com/amacneil/dbmate/v2/pkg/driver/sqlite"
+	_ "github.com/amacneil/dbmate/v2/pkg/driver/mysql"
+	_ "github.com/go-sql-driver/mysql"
 	"github.com/google/go-github/v40/github"
 	"github.com/joho/godotenv"
-	_ "github.com/mattn/go-sqlite3"
 	"golang.org/x/oauth2"
 )
 
@@ -30,17 +29,22 @@ func main() {
 		}
 	}
 
+	// Database connection string
+	dbUrl, _ := url.Parse(os.Getenv("DATABASE_URL"))
+	username := dbUrl.User.Username()
+	password, _ := dbUrl.User.Password()
+	dsn := fmt.Sprintf("%s:%s@tcp(%s:%s)/%s", username, password, dbUrl.Hostname(), dbUrl.Port(), dbUrl.Path[1:])
+
 	// Run database migrations
-	u, _ := url.Parse(os.Getenv("DATABASE_URL"))
-	dbm := dbmate.New(u)
+	dbm := dbmate.New(dbUrl)
 
 	err := dbm.CreateAndMigrate()
 	if err != nil {
 		log.Fatalf("Error migrating database: %v", err)
 	}
 
-	// Open SQLite database
-	db, err := sql.Open("sqlite3", strings.Replace(os.Getenv("DATABASE_URL"), "sqlite:", "file:", 1))
+	// Open MySQL database connection
+	db, err := sql.Open("mysql", dsn)
 	if err != nil {
 		log.Fatalf("Error opening database: %v", err)
 	}
@@ -70,7 +74,7 @@ func main() {
 				continue
 			}
 
-			result, err := db.Exec(`INSERT OR IGNORE INTO events (
+			result, err := db.Exec(`INSERT IGNORE INTO events (
 				id, type, actor, repo, payload, org, created_at
 			) VALUES (?, ?, ?, ?, ?, ?, ?)`, event.GetID(), event.GetType(), event.Actor.GetLogin(), event.Repo.GetName(), event.GetRawPayload(), event.Org.GetName(), event.GetCreatedAt())
 			if err != nil {

@@ -1,13 +1,13 @@
 -- migrate:up
 CREATE TABLE IF NOT EXISTS events (
-  id TEXT PRIMARY KEY,
-  type TEXT,
-  actor TEXT,
-  repo TEXT,
-  payload TEXT,
-  org TEXT,
-  created_at TEXT
-)
+  id VARCHAR(255) PRIMARY KEY,
+  type VARCHAR(255),
+  actor VARCHAR(255),
+  repo VARCHAR(255),
+  payload JSON,
+  org VARCHAR(255),
+  created_at DATETIME
+);
 
 -- migrate:down
-DROP TABLE EVENTS
+DROP TABLE EVENTS;
