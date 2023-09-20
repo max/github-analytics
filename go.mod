@@ -11,6 +11,7 @@ require (
 	github.com/golang/protobuf v1.5.3 // indirect
 	github.com/google/go-querystring v1.1.0 // indirect
 	github.com/joho/godotenv v1.5.1
+	github.com/mattn/go-sqlite3 v1.14.17
 	golang.org/x/crypto v0.13.0 // indirect
 	golang.org/x/net v0.15.0 // indirect
 	google.golang.org/appengine v1.6.7 // indirect
