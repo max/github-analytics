@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"strings"
 	"time"
 
 	"github.com/google/go-github/v40/github"
@@ -21,25 +22,11 @@ func main() {
 	}
 
 	// Open SQLite database
-	db, err := sql.Open("sqlite3", os.Getenv("DATABASE_URL"))
+	db, err := sql.Open("sqlite3", strings.Replace(os.Getenv("DATABASE_URL"), "sqlite:", "file:", 1))
 	if err != nil {
 		log.Fatalf("Error opening database: %v", err)
 	}
 	defer db.Close()
-
-	// Create the events table if it doesn't exist
-	_, err = db.Exec(`CREATE TABLE IF NOT EXISTS events (
-			id TEXT,
-			type TEXT,
-			actor TEXT,
-			repo TEXT,
-			payload TEXT,
-			org TEXT,
-			created_at TEXT
-	)`)
-	if err != nil {
-		log.Fatalf("Error creating events table: %v", err)
-	}
 
 	// Create a GitHub client using a personal access token or an OAuth2 token.
 	token := os.Getenv("GITHUB_TOKEN")
@@ -56,7 +43,7 @@ func main() {
 		events, _, err := client.Activity.ListEvents(ctx, &github.ListOptions{PerPage: 100})
 		if err != nil {
 			fmt.Printf("Error fetching GitHub events: %v\n", err)
-			os.Exit(1)
+			continue
 		}
 
 		// Print the event information.
@@ -65,12 +52,22 @@ func main() {
 				continue
 			}
 
-			_, err := db.Exec(`INSERT INTO events (
+			result, err := db.Exec(`INSERT OR IGNORE INTO events (
 				id, type, actor, repo, payload, org, created_at
 			) VALUES (?, ?, ?, ?, ?, ?, ?)`, event.GetID(), event.GetType(), event.Actor.GetLogin(), event.Repo.GetName(), event.GetRawPayload(), event.Org.GetName(), event.GetCreatedAt())
 			if err != nil {
 				fmt.Printf("Error inserting event into database: %v\n", err)
 				continue
+			}
+
+			rowsAffected, err := result.RowsAffected()
+			if err != nil {
+				fmt.Printf("Error getting rows affected: %v\n", err)
+				continue
+			}
+
+			if rowsAffected > 0 {
+				fmt.Printf("Inserted event %s\n", event.GetID())
 			}
 		}
 	}
