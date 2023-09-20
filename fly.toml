@@ -1,0 +1,10 @@
+app = "github-analytics"
+primary_region = "iad"
+
+[mounts]
+  source = "github_analytics_data"
+  destination = "/data"
+
+[build]
+  builder = "paketobuildpacks/builder:base"
+  buildpacks = ["gcr.io/paketo-buildpacks/go"]
