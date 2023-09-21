@@ -8,11 +8,11 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"text/template"
 	"time"
 
 	"github.com/google/go-github/v40/github"
 	"github.com/joho/godotenv"
-	"golang.org/x/oauth2"
 	"gorm.io/driver/mysql"
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
@@ -24,6 +24,11 @@ type GithubEvent struct {
 	Actor     string
 	Repo      string
 	CreatedAt time.Time
+}
+
+type RepoWatchCount struct {
+	Repo       string
+	WatchCount int
 }
 
 func main() {
@@ -47,24 +52,69 @@ func main() {
 	db.AutoMigrate(&GithubEvent{})
 
 	// Create a GitHub client using a personal access token or an OAuth2 token.
-	token := os.Getenv("GITHUB_TOKEN")
-	ctx := context.Background()
-	ts := oauth2.StaticTokenSource(&oauth2.Token{AccessToken: token})
-	tc := oauth2.NewClient(ctx, ts)
-	client := github.NewClient(tc)
+	// token := os.Getenv("GITHUB_TOKEN")
+	// ctx := context.Background()
+	// ts := oauth2.StaticTokenSource(&oauth2.Token{AccessToken: token})
+	// tc := oauth2.NewClient(ctx, ts)
+	// client := github.NewClient(tc)
 
 	// Run the GitHub event collector in the background
-	go collectGithubEvents(ctx, db, client)
+	// go collectGithubEvents(ctx, db, client)
 
 	// Start a web server
 	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
-		fmt.Fprint(w, "Hello, world!")
+		handleIndex(w, r, db)
 	})
 	log.Fatal(http.ListenAndServe(":8080", nil))
+}
 
-	ticker := time.NewTicker(1500 * time.Millisecond)
-	defer ticker.Stop()
+func handleIndex(w http.ResponseWriter, r *http.Request, db *gorm.DB) {
+	// Query the database for all events
+	var repoWatchCounts []RepoWatchCount
+	// db.Find(&events)
 
+	db.Table("github_events").
+		Select("repo, count(*) as watch_count").
+		Group("repo").
+		Order("watch_count DESC").
+		Limit(100).
+		Scan(&repoWatchCounts)
+
+	// Render the HTML template
+	tmpl, err := template.New("index").Parse(`
+        <!DOCTYPE html>
+        <html>
+        <head>
+            <title>GitHub Analytics</title>
+
+			<style>
+				body {
+					font-family: sans-serif;
+				}
+			</style>
+        </head>
+        <body>
+            <h1>Most Starred Repos</h1>
+
+            <ul>
+                {{range .}}
+                    <li>{{.WatchCount}} <a href="https://github.com/{{.Repo}}">{{.Repo}}</a></li>
+                {{end}}
+            </ul>
+        </body>
+        </html>
+    `)
+
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	err = tmpl.Execute(w, repoWatchCounts)
+
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
 }
 
 func collectGithubEvents(ctx context.Context, db *gorm.DB, client *github.Client) {
