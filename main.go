@@ -13,6 +13,7 @@ import (
 
 	"github.com/google/go-github/v40/github"
 	"github.com/joho/godotenv"
+	"golang.org/x/oauth2"
 	"gorm.io/driver/mysql"
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
@@ -52,14 +53,14 @@ func main() {
 	db.AutoMigrate(&GithubEvent{})
 
 	// Create a GitHub client using a personal access token or an OAuth2 token.
-	// token := os.Getenv("GITHUB_TOKEN")
-	// ctx := context.Background()
-	// ts := oauth2.StaticTokenSource(&oauth2.Token{AccessToken: token})
-	// tc := oauth2.NewClient(ctx, ts)
-	// client := github.NewClient(tc)
+	token := os.Getenv("GITHUB_TOKEN")
+	ctx := context.Background()
+	ts := oauth2.StaticTokenSource(&oauth2.Token{AccessToken: token})
+	tc := oauth2.NewClient(ctx, ts)
+	client := github.NewClient(tc)
 
 	// Run the GitHub event collector in the background
-	// go collectGithubEvents(ctx, db, client)
+	go collectGithubEvents(ctx, db, client)
 
 	// Start a web server
 	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
@@ -75,6 +76,7 @@ func handleIndex(w http.ResponseWriter, r *http.Request, db *gorm.DB) {
 
 	db.Table("github_events").
 		Select("repo, count(*) as watch_count").
+		Where("created_at >= ?", time.Now().Add(-24*time.Hour)).
 		Group("repo").
 		Order("watch_count DESC").
 		Limit(100).
