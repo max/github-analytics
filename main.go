@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io/fs"
 	"log"
+	"net/http"
 	"os"
 	"time"
 
@@ -52,6 +53,21 @@ func main() {
 	tc := oauth2.NewClient(ctx, ts)
 	client := github.NewClient(tc)
 
+	// Run the GitHub event collector in the background
+	go collectGithubEvents(ctx, db, client)
+
+	// Start a web server
+	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
+		fmt.Fprint(w, "Hello, world!")
+	})
+	log.Fatal(http.ListenAndServe(":8080", nil))
+
+	ticker := time.NewTicker(1500 * time.Millisecond)
+	defer ticker.Stop()
+
+}
+
+func collectGithubEvents(ctx context.Context, db *gorm.DB, client *github.Client) {
 	ticker := time.NewTicker(1500 * time.Millisecond)
 	defer ticker.Stop()
 
