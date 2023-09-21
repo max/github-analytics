@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"io/fs"
 	"log"
-	"net/url"
 	"os"
 	"time"
 
@@ -36,13 +35,7 @@ func main() {
 		}
 	}
 
-	// Database connection string
-	dbUrl, _ := url.Parse(os.Getenv("DATABASE_URL"))
-	username := dbUrl.User.Username()
-	password, _ := dbUrl.User.Password()
-	dsn := fmt.Sprintf("%s:%s@tcp(%s:%s)/%s", username, password, dbUrl.Hostname(), dbUrl.Port(), dbUrl.Path[1:])
-
-	db, err := gorm.Open(mysql.Open(dsn), &gorm.Config{
+	db, err := gorm.Open(mysql.Open(os.Getenv("DSN")), &gorm.Config{
 		DisableForeignKeyConstraintWhenMigrating: true,
 	})
 	if err != nil {
