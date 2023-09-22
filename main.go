@@ -2,21 +2,19 @@ package main
 
 import (
 	"context"
-	"errors"
 	"fmt"
-	"io/fs"
 	"log"
 	"net/http"
-	"os"
 	"text/template"
 	"time"
 
 	"github.com/google/go-github/v40/github"
-	"github.com/joho/godotenv"
 	"golang.org/x/oauth2"
 	"gorm.io/driver/mysql"
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
+
+	"github.com/max/github-analytics/config"
 )
 
 type GithubEvent struct {
@@ -43,16 +41,12 @@ type Cache struct {
 var cache Cache
 
 func main() {
-	// Pick up environment variables from .env
-	if err := godotenv.Load(); err != nil {
-		if errors.Is(err, fs.ErrNotExist) {
-			fmt.Println("No .env file found")
-		} else {
-			log.Fatalf("Error loading .env file: %v\n", err)
-		}
+	cfg, err := config.New()
+	if err != nil {
+		log.Fatal(err)
 	}
 
-	db, err := gorm.Open(mysql.Open(os.Getenv("DSN")), &gorm.Config{
+	db, err := gorm.Open(mysql.Open(cfg.Database.DSN), &gorm.Config{
 		DisableForeignKeyConstraintWhenMigrating: true,
 	})
 	if err != nil {
@@ -63,9 +57,8 @@ func main() {
 	db.AutoMigrate(&GithubEvent{})
 
 	// Create a GitHub client using a personal access token or an OAuth2 token.
-	token := os.Getenv("GITHUB_TOKEN")
 	ctx := context.Background()
-	ts := oauth2.StaticTokenSource(&oauth2.Token{AccessToken: token})
+	ts := oauth2.StaticTokenSource(&oauth2.Token{AccessToken: cfg.Github.Token})
 	tc := oauth2.NewClient(ctx, ts)
 	client := github.NewClient(tc)
 
@@ -76,7 +69,7 @@ func main() {
 	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
 		handleIndex(w, r, db)
 	})
-	log.Fatal(http.ListenAndServe(":8080", nil))
+	log.Fatal(http.ListenAndServe(cfg.Addr(), nil))
 }
 
 func handleIndex(w http.ResponseWriter, r *http.Request, db *gorm.DB) {

@@ -1,0 +1,7 @@
+port = 8080
+
+[database]
+dsn="root:password@tcp(127.0.0.1:3306)/github_analytics"
+
+[github]
+token="YOUR_GITHUB_TOKEN"
