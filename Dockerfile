@@ -16,5 +16,8 @@ COPY . ./
 # Build
 RUN go build -o /gha
 
+# Expose port 8080 to the outside world
+EXPOSE 8080
+
 # Run
 CMD ["/gha"]
