@@ -23,14 +23,16 @@ type GithubEvent struct {
 	ID        string `gorm:"primaryKey"`
 	Type      string
 	Actor     string
-	Repo      string
-	CreatedAt time.Time
+	Repo      string    `gorm:"index:idx_repo"`
+	CreatedAt time.Time `gorm:"index:idx_created_at"`
 }
 
 type RepoWatchCount struct {
-	Rank       int
-	Repo       string
-	WatchCount int
+	Repo        string
+	CurrentRank int
+	PrevRank    int
+	RankChange  int
+	WatchCount  int
 }
 
 func main() {
@@ -75,15 +77,39 @@ func handleIndex(w http.ResponseWriter, r *http.Request, db *gorm.DB) {
 	var repoWatchCounts []RepoWatchCount
 
 	query := `
+	SELECT
+		c.repo,
+		c.current_rank,
+		p.prev_rank,
+		COALESCE(p.prev_rank, 101) - c.current_rank AS rank_change,
+		c.watch_count
+	FROM (
 		SELECT
-			ROW_NUMBER() OVER (ORDER BY COUNT(*) DESC) AS rank,
+			ROW_NUMBER() OVER (ORDER BY COUNT(*)
+				DESC) AS current_rank,
 			repo,
 			COUNT(*) AS watch_count
-		FROM github_events
-		WHERE created_at >= DATE_SUB(NOW(), INTERVAL 24 HOUR)
-		GROUP BY repo
-		ORDER BY count DESC
-		LIMIT 100
+		FROM
+			github_events
+		WHERE
+			created_at >= DATE_SUB(NOW(), INTERVAL 24 HOUR)
+		GROUP BY
+			repo
+		LIMIT 100) c
+		LEFT JOIN (
+			SELECT
+				ROW_NUMBER() OVER (ORDER BY COUNT(*)
+					DESC) AS prev_rank,
+				repo
+			FROM
+				github_events
+			WHERE
+				created_at BETWEEN DATE_SUB(NOW(), INTERVAL 48 HOUR)
+				AND DATE_SUB(NOW(), INTERVAL 24 HOUR)
+			GROUP BY
+				repo) p ON c.repo = p.repo
+	ORDER BY
+		c.watch_count DESC;
 	`
 
 	err := db.Raw(query).Scan(&repoWatchCounts).Error
@@ -112,16 +138,20 @@ func handleIndex(w http.ResponseWriter, r *http.Request, db *gorm.DB) {
             <table>
 				<thead>
 					<tr>
-						<th>Rank</th>
+						<th>Current Rank</th>
 						<th>Repo</th>
+						<th>Previous Rank</th>
+						<th>Rank Change</th>
 						<th>Watch Count</th>
 					</tr>
 				</thead>
 				<tbody>
 					{{range .}}
 						<tr>
-							<td>{{.Rank}}</td>
+							<td>{{.CurrentRank}}</td>
 							<td><a href="https://github.com/{{.Repo}}">{{.Repo}}</a></td>
+							<td>{{.PrevRank}}</td>
+							<td>{{.RankChange}}</td>
 							<td>{{.WatchCount}}</td>
 						</tr>
 					{{end}}
