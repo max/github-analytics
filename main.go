@@ -28,6 +28,7 @@ type GithubEvent struct {
 }
 
 type RepoWatchCount struct {
+	Rank       int
 	Repo       string
 	WatchCount int
 }
@@ -72,15 +73,24 @@ func main() {
 func handleIndex(w http.ResponseWriter, r *http.Request, db *gorm.DB) {
 	// Query the database for all events
 	var repoWatchCounts []RepoWatchCount
-	// db.Find(&events)
 
-	db.Table("github_events").
-		Select("repo, count(*) as watch_count").
-		Where("created_at >= ?", time.Now().Add(-24*time.Hour)).
-		Group("repo").
-		Order("watch_count DESC").
-		Limit(100).
-		Scan(&repoWatchCounts)
+	query := `
+		SELECT
+			ROW_NUMBER() OVER (ORDER BY COUNT(*) DESC) AS row_num,
+			repo,
+			COUNT(*) AS count
+		FROM github_events
+		WHERE created_at >= DATE_SUB(NOW(), INTERVAL 24 HOUR)
+		GROUP BY repo
+		ORDER BY count DESC
+		LIMIT 100
+	`
+
+	err := db.Raw(query).Scan(&repoWatchCounts).Error
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
 
 	// Render the HTML template
 	tmpl, err := template.New("index").Parse(`
@@ -96,13 +106,27 @@ func handleIndex(w http.ResponseWriter, r *http.Request, db *gorm.DB) {
 			</style>
         </head>
         <body>
-            <h1>Most Starred Repos</h1>
+            <h1>Top Starred Repos</h1>
+			<p><small>Most starred repos in the last 24 hours</small></p>
 
-            <ul>
-                {{range .}}
-                    <li>{{.WatchCount}} <a href="https://github.com/{{.Repo}}">{{.Repo}}</a></li>
-                {{end}}
-            </ul>
+            <table>
+				<thead>
+					<tr>
+						<th>Rank</th>
+						<th>Repo</th>
+						<th>Watch Count</th>
+					</tr>
+				</thead>
+				<tbody>
+					{{range .}}
+						<tr>
+							<td>{{.Rank}}</td>
+							<td><a href="https://github.com/{{.Repo}}">{{.Repo}}</a></td>
+							<td>{{.WatchCount}}</td>
+						</tr>
+					{{end}}
+				</tbody>
+            </table>
         </body>
         </html>
     `)
