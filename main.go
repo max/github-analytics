@@ -76,9 +76,9 @@ func handleIndex(w http.ResponseWriter, r *http.Request, db *gorm.DB) {
 
 	query := `
 		SELECT
-			ROW_NUMBER() OVER (ORDER BY COUNT(*) DESC) AS row_num,
+			ROW_NUMBER() OVER (ORDER BY COUNT(*) DESC) AS rank,
 			repo,
-			COUNT(*) AS count
+			COUNT(*) AS watch_count
 		FROM github_events
 		WHERE created_at >= DATE_SUB(NOW(), INTERVAL 24 HOUR)
 		GROUP BY repo
