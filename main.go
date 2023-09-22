@@ -35,6 +35,13 @@ type RepoWatchCount struct {
 	WatchCount  int
 }
 
+type Cache struct {
+	data          []RepoWatchCount
+	lastUpdatedAt time.Time
+}
+
+var cache Cache
+
 func main() {
 	// Pick up environment variables from .env
 	if err := godotenv.Load(); err != nil {
@@ -73,6 +80,12 @@ func main() {
 }
 
 func handleIndex(w http.ResponseWriter, r *http.Request, db *gorm.DB) {
+	// Check the freshness of cache
+	if time.Since(cache.lastUpdatedAt) < time.Hour {
+		renderTemplate(w, cache.data)
+		return
+	}
+
 	// Query the database for all events
 	var repoWatchCounts []RepoWatchCount
 
@@ -119,6 +132,14 @@ func handleIndex(w http.ResponseWriter, r *http.Request, db *gorm.DB) {
 	}
 
 	// Render the HTML template
+	renderTemplate(w, repoWatchCounts)
+
+	// Update the cache
+	cache.data = repoWatchCounts
+	cache.lastUpdatedAt = time.Now()
+}
+
+func renderTemplate(w http.ResponseWriter, repoWatchCounts []RepoWatchCount) {
 	tmpl, err := template.New("index").Parse(`
         <!DOCTYPE html>
         <html>
@@ -159,14 +180,12 @@ func handleIndex(w http.ResponseWriter, r *http.Request, db *gorm.DB) {
             </table>
         </body>
         </html>
-    `)
-
+	`)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
 	err = tmpl.Execute(w, repoWatchCounts)
-
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
